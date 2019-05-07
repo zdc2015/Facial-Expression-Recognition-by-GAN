@@ -1,0 +1,4 @@
+# this is a black list for uploading files
+checkpoint
+events.*
+model-*
