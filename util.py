@@ -116,7 +116,7 @@ def get_target_picture(file_name, targets_path, databases='ck+'):
 
 def get_ck_dataset(seed = 1234):
     #datasets_path = r'C:\Users\zdc\Downloads\FER\dataset'
-    datasets_path = r'..\dataset'
+    datasets_path = r'.\dataset'
     emotions = ['anger', 'contempt', 'disgust', 'fear', 'happy', 'sadness', 'surprise']
     j = 0
     i = 0
@@ -158,7 +158,8 @@ def get_ck_dataset(seed = 1234):
     return train_picture, target_picture, train_label, j
 
 def get_TFEID_dataset(seed = 1234, size=64):
-    dataset_path = r'C:\Users\zdc\Downloads\FER\dataset\TFEID High'
+    # dataset_path = r'C:\Users\zdc\Downloads\FER\dataset\TFEID High'
+    dataset_path = r'..\dataset\TFEID High'
     target_img_dir_path = dataset_path + '\dfh_neutral_x'
     dirs_path = glob(dataset_path+'\*')
     train_picture = None
@@ -177,7 +178,6 @@ def get_TFEID_dataset(seed = 1234, size=64):
                 train_picture = np.expand_dims(train_picture, axis=0)
 
                 target_pic = get_target_picture(os.path.basename(img_path), target_img_dir_path, databases='TFEID High')
-                print(target_pic)
                 target_picture = cv2.imread(target_pic)
                 target_picture = cv2.resize(target_picture, (size, size))
                 target_picture = np.expand_dims(target_picture, axis=0)
@@ -230,19 +230,21 @@ def random_minibatch(X, Y, minibatch_size=64):
 
     return minibatchs
 
-def random_minibatch(X, Y, Z, minibatch_size=64):
+def random_minibatch3(X, Y, Z, minibatch_size=64):
     m = X.shape[0]
     random_index = list(np.random.permutation(m))
 
     shuffle_X = X[random_index]
     shuffle_Y = Y[random_index]
+    shuffle_Z = Z[random_index]
     minibatchs = []
 
     num = math.floor(m/minibatch_size)
     for i in range(num):
         tx = shuffle_X[i*minibatch_size:(i+1)*minibatch_size]
         ty = shuffle_Y[i*minibatch_size:(i+1)*minibatch_size]
-        minibatch = (tx, ty)
+        tz = shuffle_Z[i * minibatch_size:(i + 1) * minibatch_size]
+        minibatch = (tx, ty, tz)
         minibatchs.append(minibatch)
 
     # if m%minibatch_size != 0:

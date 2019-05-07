@@ -32,7 +32,7 @@ parser.add_argument("--lambda_5", type=float, default=1.0)
 args = parser.parse_args()  # 用来解析命令行参数
 EPS = 1e-12  # EPS用于保证log函数里面的参数大于零
 
-minibatch_size = 256
+minibatch_size = 1
 emotions = ['anger','contempt','disgust', 'fear', 'happy', 'sadness', 'surprise']
 eval_out_dir = r'.\eval_out'
 
@@ -54,16 +54,37 @@ def get_write_picture(picture, gen_label, label, height, width):  # get_write_pi
 def l1_loss(src, dst):  # 定义l1_loss
     return tf.reduce_mean(tf.abs(src - dst))
 
-
-def eval():
-
-    if not os.path.exists(eval_out_dir):  # 如果保存测试中可视化输出的文件夹不存在则创建
-        os.makedirs(eval_out_dir)
-
-    picture, target, label, num_classes = get_TFEID_dataset()
+def test_ck():
+    picture, target, label, num_classes = get_ck_dataset()
     label = convert_to_one_hot(label, num_classes)
     picture = picture / 127.5 - 1.  # 归一化图片
     target = target / 127.5 - 1.  # 归一化图片
+
+    num_train = minibatch_size * 256 * 150
+    num_test = 1024 * 10
+
+    train_picture = picture[:num_train]
+    test_picture = picture[num_train:num_train + num_test]
+    train_target = target[:num_train]
+    test_target = target[num_train:num_train + num_test]
+    train_label = label[:num_train]
+    test_label = label[num_train:num_train + num_test]
+
+    picture = test_picture
+    target = test_target
+    label = test_label
+    return picture, target, label, num_classes
+
+def eval():
+    if not os.path.exists(eval_out_dir):  # 如果保存测试中可视化输出的文件夹不存在则创建
+        os.makedirs(eval_out_dir)
+
+    # picture, target, label, num_classes = get_TFEID_dataset()
+    # label = convert_to_one_hot(label, num_classes)
+    # picture = picture / 127.5 - 1.  # 归一化图片
+    # target = target / 127.5 - 1.  # 归一化图片
+
+    picture, target, label, num_classes = test_ck()
 
     input_picture = tf.placeholder(tf.float32, shape=[None, args.image_size, args.image_size, 3],
                                    name='train_picture')  # 输入的训练图像
@@ -111,25 +132,30 @@ def eval():
     sess.run(init)  # 初始化所有可训练参数
 
     saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=3)  # 模型保存
-    checkpoint = tf.train.latest_checkpoint(args.snapshots)  # 读取模型参数
+    checkpoint = tf.train.latest_checkpoint(args.snapshot_dir)  # 读取模型参数
     saver.restore(sess, checkpoint)  # 导入模型参数
 
     counter = 0
     total_acc = 0
     minibatch_num = picture.shape[0] / minibatch_size
-    minibatchs = random_minibatch(picture, label, target, minibatch_size)
+    minibatchs = random_minibatch3(picture, label, target, minibatch_size)
     for minibatch in tqdm(minibatchs):
-        counter += 1
+        counter +=1
         (tx, ty, tz) = minibatch
         gen, predict, acc = sess.run([gen_picture, predict_op, accuracy],feed_dict={input_picture: tx, input_label: ty})
-
         total_acc += acc / minibatch_num
         write_image = get_write_picture(tx[0], gen, tz[0], args.image_size,
                                         args.image_size)  # 得到训练的可视化结果
         real_emotions = np.argmax(ty, axis=1)
-        write_image_name = args.out_dir + "/out" + "_predict:{}".format(emotions[predict]) +\
-                           "_real:{}".format(emotions[real_emotions[0]])+".png"  # 待保存的训练可视化结果路径与名称
-        cv2.imwrite(write_image_name, write_image)  # 保存训练的可视化结果
+        # write_image_name = str(counter)+'.png'
+        if predict == real_emotions[0]:
+            write_image_name = eval_out_dir + "\\{}predict_{}".format(counter, emotions[predict[0]]) + "__real_{}".format(emotions[int(real_emotions[0])])+".png"  # 待保存的训练可视化结果路径与名称
+        else:
+            write_image_name = eval_out_dir + "\!!!!!!!!!!" + "{}predict_{}".format(counter, emotions[predict[0]]) + "__real_{}".format(emotions[int(real_emotions[0])]) + ".png"
+        flag = cv2.imwrite(write_image_name, write_image)  # 保存训练的可视化结果. 卧槽为什么会失败，尼玛的,好吧，命名错误
+        if flag == False:
+            break
+    print("eval accuracy:{}".format(total_acc))
     sess.close()
 
 if __name__ =="__main__":
