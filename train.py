@@ -8,15 +8,6 @@ Created on Wed Apr  3 20:22:53 2019
 from __future__ import print_function
 
 import argparse
-from random import shuffle
-import random
-import os
-import sys
-import math
-import tensorflow as tf
-import glob
-import cv2
-from tqdm import tqdm
 from util import *
 from net import *
 
@@ -75,7 +66,6 @@ def get_write_picture(picture, gen_label, label, height, width):  # get_write_pi
     output = np.concatenate((inv_picture_image, inv_gen_label_image, inv_label_image), axis=1)  # 把他们拼起来
     return output
 
-
 def l1_loss(src, dst):  # 定义l1_loss
     return tf.reduce_mean(tf.abs(src - dst))
 
@@ -85,7 +75,7 @@ def smalltest():  # 训练程序的主函数
     if not os.path.exists(args.out_dir):  # 如果保存训练中可视化输出的文件夹不存在则创建
         os.makedirs(args.out_dir)
 
-    picture, target, label, num_classes = get_dataset()
+    picture, target, label, num_classes = get_ck_dataset()
     label = convert_to_one_hot(label, num_classes)
     picture = picture / 127.5 - 1.  # 归一化图片
     target = target / 127.5 - 1.  # 归一化图片
@@ -132,6 +122,7 @@ def smalltest():  # 训练程序的主函数
         flatten = tf.contrib.layers.flatten(classification)
         classification = tf.contrib.layers.fully_connected(flatten, activation_fn=None, num_outputs=num_classes)
 
+
     # classification = FC1 + FC2 + FC3 + FC4 + residues['fc']
 
 
@@ -166,7 +157,8 @@ def smalltest():  # 训练程序的主函数
     g_vars = [v for v in tf.trainable_variables() if 'generator' in v.name]  # 所有生成器的可训练参数
     d_vars = [v for v in tf.trainable_variables() if 'discriminator' in v.name]  # 所有判别器的可训练参数
     c_vars = [v for v in tf.trainable_variables() if 'CNN' in v.name]  # 所有分类模型的可训练参数
-    restore_var = g_vars.extend(d_vars)
+    restore_var = g_vars.copy()       # 不能直接restore_var = g_vars.extend(d_vars)
+    restore_var = restore_var.extend(d_vars)
 
     d_optim = tf.train.AdamOptimizer(args.base_lr, beta1=args.beta1)  # 判别器训练器
     g_optim = tf.train.AdamOptimizer(args.base_lr, beta1=args.beta1)  # 生成器训练器
@@ -187,7 +179,7 @@ def smalltest():  # 训练程序的主函数
     init = tf.global_variables_initializer()  # 参数初始化器
     sess.run(init)  # 初始化所有可训练参数
     saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=3)  # 模型保存
-    # saver_re = tf.train.Saver(var_list=restore_var, max_to_keep=3)  # 模型保存
+    # saver_re = tf.train.Saver(var_list=restore_var, max_to_keep=3)  # generator模型保存
 
     counter = 0  # counter记录训练步数
 
@@ -238,7 +230,7 @@ def smalltest():  # 训练程序的主函数
         minibatch_num = train_label.shape[0] // minibatch_size
         minibatchs = random_minibatch(train_picture, train_label, minibatch_size)
         print('epoch {}'.format(epoch))
-        for minibatch in tqdm.tqdm(minibatchs):
+        for minibatch in tqdm(minibatchs):
             counter += 1
             (tx, ty) = minibatch
             feed_dict = {input_picture: tx, input_label: ty}  # 构造feed_dict
@@ -246,11 +238,12 @@ def smalltest():  # 训练程序的主函数
             epoch_cost+=loss/minibatch_num
 
         test_sets = random_minibatch(test_picture, test_label, minibatch_size)
+        num_test_sets = len(test_sets)
         acc = 0
         for test_set in test_sets:
-            (tx, ty) = minibatch
+            (tx, ty) = test_set
             t = accuracy.eval(session=sess, feed_dict={input_picture:tx, input_label:ty})
-            acc += t/minibatch_num
+            acc += t/num_test_sets
 
         print("Cost, test_accuracy after epoch %i: %f, %f" % (epoch, epoch_cost, acc))
         test_accs.append(acc)
