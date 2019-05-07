@@ -75,16 +75,19 @@ def test_ck():
     label = test_label
     return picture, target, label, num_classes
 
+def test_TFEID():
+    picture, target, label, num_classes = get_TFEID_dataset()
+    label = convert_to_one_hot(label, num_classes)
+    picture = picture / 127.5 - 1.  # 归一化图片
+    target = target / 127.5 - 1.  # 归一化图片
+
+    return  picture, target, label, num_classes
+
 def eval():
     if not os.path.exists(eval_out_dir):  # 如果保存测试中可视化输出的文件夹不存在则创建
         os.makedirs(eval_out_dir)
 
-    # picture, target, label, num_classes = get_TFEID_dataset()
-    # label = convert_to_one_hot(label, num_classes)
-    # picture = picture / 127.5 - 1.  # 归一化图片
-    # target = target / 127.5 - 1.  # 归一化图片
-
-    picture, target, label, num_classes = test_ck()
+    picture, target, label, num_classes = test_TFEID()
 
     input_picture = tf.placeholder(tf.float32, shape=[None, args.image_size, args.image_size, 3],
                                    name='train_picture')  # 输入的训练图像

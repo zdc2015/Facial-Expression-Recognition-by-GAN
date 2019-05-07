@@ -2,3 +2,5 @@
 checkpoint
 events.*
 model-*
+eval_out*
+*pycache*
