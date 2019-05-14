@@ -2,7 +2,10 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../CNN/.idea/CNN.iml" filepath="$PROJECT_DIR$/../CNN/.idea/CNN.iml" />
+      <module fileurl="file://$USER_HOME$/Downloads/FER/cGAN de-expression in ck+/.idea/cGAN de-expression in ck+.iml" filepath="$USER_HOME$/Downloads/FER/cGAN de-expression in ck+/.idea/cGAN de-expression in ck+.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/fer by gan.iml" filepath="$PROJECT_DIR$/.idea/fer by gan.iml" />
+      <module fileurl="file://$USER_HOME$/Downloads/FER/tensorflow-MNIST-cGAN-cDCGAN/.idea/tensorflow-MNIST-cGAN-cDCGAN.iml" filepath="$USER_HOME$/Downloads/FER/tensorflow-MNIST-cGAN-cDCGAN/.idea/tensorflow-MNIST-cGAN-cDCGAN.iml" />
     </modules>
   </component>
 </project>

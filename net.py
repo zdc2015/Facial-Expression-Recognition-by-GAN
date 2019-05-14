@@ -30,7 +30,6 @@ def conv2d(input_, output_dim, kernel_size, stride, padding="SAME", name="conv2d
             output = tf.nn.bias_add(output, biases)
         return output
 
-
 # 定义空洞卷积层
 def atrous_conv2d(input_, output_dim, kernel_size, dilation, padding="SAME", name="atrous_conv2d", biased=False):
     input_dim = input_.get_shape()[-1]
@@ -40,19 +39,6 @@ def atrous_conv2d(input_, output_dim, kernel_size, dilation, padding="SAME", nam
         if biased:
             biases = make_var(name='biases', shape=[output_dim])
             output = tf.nn.bias_add(output, biases)
-        return output
-
-
-# 定义反卷积层
-def deconv2d(input_, output_dim, kernel_size, stride, padding="SAME", name="deconv2d", batch_size=10):
-    input_dim = input_.get_shape()[-1]
-    input_height = int(input_.get_shape()[1])
-    input_width = int(input_.get_shape()[2])
-    # batch_size = int(input_.get_shape()[0])
-    with tf.variable_scope(name):
-        kernel = make_var(name='weights', shape=[kernel_size, kernel_size, output_dim, input_dim])
-        output = tf.nn.conv2d_transpose(input_, kernel, [batch_size, input_height * 2, input_width * 2, output_dim],
-                                        [1, 2, 2, 1], padding="SAME")
         return output
 
 
@@ -299,8 +285,12 @@ def discriminator(image, targets, df_dim=64, reuse=False, name="discriminator"):
         # 第4个卷积模块，输出尺度: 1*4*4*512
         h3 = lrelu(batch_norm(conv2d(input_=h2, output_dim=df_dim * 8, kernel_size=4, stride=1, name='d_h3_conv'),
                               name='d_bn3'))
-        # 最后一个卷积模块，输出尺度: 1*4*4*1
-        output = conv2d(input_=h3, output_dim=1, kernel_size=4, stride=1, name='d_h4_conv')
+        # 第5个卷积模块，输出尺度: 1*4*4*1
+        h4 = lrelu(batch_norm(conv2d(input_=h3, output_dim=1, kernel_size=4, stride=1, name='d_h4_conv'),
+                              name='d_bn3'))
+        # 最后一个卷积模块，输出尺度: None*1*1*1
+        output = conv2d(input_=h3, output_dim=1, kernel_size=4, stride=1, name='d_h5_conv', padding='VALID')
+
 
         dis_out = tf.sigmoid(output)  # 在输出之前经过sigmoid层，因为需要进行log运算
         return dis_out
@@ -344,9 +334,7 @@ def local_cnn_2(residue, input_1=None, input_2=None, name='CNN2', num_classes=7)
         c4 = conv2d(input_=lrelu(e3),output_dim=512,kernel_size=4,stride=2,name='c_c4_conv')
         flatten = tf.contrib.layers.flatten(c4)
         fc = tf.contrib.layers.fully_connected(flatten,activation_fn=None,num_outputs=num_classes)
-        print_activations(c4)
-        print_activations(flatten)
-        print_activations(fc)
+
 
         return fc
 

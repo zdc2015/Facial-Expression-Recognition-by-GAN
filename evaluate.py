@@ -51,10 +51,18 @@ def get_write_picture(picture, gen_label, label, height, width):  # get_write_pi
     output = np.concatenate((inv_picture_image, inv_gen_label_image, inv_label_image), axis=1)  # 把他们拼起来
     return output
 
+def get_gen_picture(picture, gen_label, height, width):
+    picture_image = cv_inv_proc(picture)  # 还原输入的图像
+    gen_label_image = cv_inv_proc(gen_label[0])  # 还原生成的样本
+    inv_picture_image = cv2.resize(picture_image, (width, height))  # 还原图像的尺寸
+    inv_gen_label_image = cv2.resize(gen_label_image, (width, height))  # 还原生成的样本的尺寸
+    output = np.concatenate((inv_picture_image, inv_gen_label_image), axis=1)  # 把他们拼起来
+    return output
+
 def l1_loss(src, dst):  # 定义l1_loss
     return tf.reduce_mean(tf.abs(src - dst))
 
-def test_ck():
+def test_ck_rearrange_rotate_crop5():
     picture, target, label, num_classes = get_ck_dataset()
     label = convert_to_one_hot(label, num_classes)
     picture = picture / 127.5 - 1.  # 归一化图片
@@ -75,6 +83,14 @@ def test_ck():
     label = test_label
     return picture, target, label, num_classes
 
+def test_ck_rearrange_crop():
+    picture, target, label, num_classes = get_ck_rearrange_crop()
+    label = convert_to_one_hot(label, num_classes)
+    picture = picture / 127.5 - 1.  # 归一化图片
+    target = target / 127.5 - 1.  # 归一化图片
+
+    return picture, target, label, num_classes
+
 def test_TFEID():
     picture, target, label, num_classes = get_TFEID_dataset()
     label = convert_to_one_hot(label, num_classes)
@@ -83,11 +99,92 @@ def test_TFEID():
 
     return  picture, target, label, num_classes
 
+def test_one_picture():
+    img = r'C:\Users\zdc\Pictures\20190315152732.png'
+    label = r'xxx'
+
+    predict, gen_picture = predict_emotion(img)
+    print('predict emotion of '+img+" : "+emotions[predict])
+    cv2.imwrite(os.path.splitext(os.path.split(img)[1])[0]+' predict_'+emotions[predict]+'.jpg', gen_picture)
+
+def test_jaffe():
+    picture, target, label, num_classes = get_jaffe_dataset()
+    label = convert_to_one_hot(label, num_classes)
+    picture = picture / 127.5 - 1.  # 归一化图片
+    target = target / 127.5 - 1.  # 归一化图片
+
+    return picture, target, label, num_classes
+
+def predict_emotion(img, num_classes=7, target=None):
+    picture = pre_process_onepicture(img)
+    predict, gen_picture = model(picture, num_classes)
+    return predict, gen_picture
+
+def model(picture, num_classes, target=None, label=None):
+    minibatch_size = 1
+
+    picture = picture / 127.5 - 1.  # 归一化图片
+
+    input_picture = tf.placeholder(tf.float32, shape=[None, args.image_size, args.image_size, 3],
+                                   name='train_picture')  # 输入的训练图像
+    target_picture = tf.placeholder(tf.float32, shape=[None, args.image_size, args.image_size, 3],
+                                    name='target_picture')  # 输入的与训练图像匹配的标签
+    input_label = tf.placeholder(tf.float32, shape=[None, num_classes], name='train_label')
+
+    gen_picture, residues = generator(image=input_picture, reuse=False, num_classes=num_classes)  # 得到生成器的输出
+    dis_real = discriminator(image=input_picture, targets=target_picture, df_dim=64, reuse=False,
+                             name="discriminator")  # 判别器返回的对真实标签的判别结果
+    dis_fake = discriminator(image=input_picture, targets=gen_picture, df_dim=64, reuse=True,
+                             name="discriminator")  # 判别器返回的对生成(虚假的)标签判别结果
+
+    FC1 = local_cnn_1(residues['d4'], num_classes=num_classes)
+    FC2 = local_cnn_2(residues['d3'], num_classes=num_classes)
+    FC3 = local_cnn_3(residues['d2'], num_classes=num_classes)
+    FC4 = local_cnn_4(residues['d1'], num_classes=num_classes)
+
+    classification = tf.concat([FC1, FC2, FC3, FC4, residues['fc']], axis=1)
+    with tf.variable_scope('CNN/classification', reuse=False):
+        flatten = tf.contrib.layers.flatten(classification)
+        classification = tf.contrib.layers.fully_connected(flatten, activation_fn=None, num_outputs=num_classes)
+
+    predict_op = tf.argmax(classification, axis=1)
+    correct_prediction = tf.equal(predict_op, tf.argmax(input_label, axis=1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+
+    loss_1 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=FC1, labels=input_label))
+    loss_2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=FC2, labels=input_label))
+    loss_3 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=FC3, labels=input_label))
+    loss_4 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=FC4, labels=input_label))
+    loss_5 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=classification, labels=input_label))
+    total_loss = args.lambda_1 * loss_1 + args.lambda_2 * loss_2 + args.lambda_3 * loss_3 + args.lambda_4 * loss_4 + args.lambda_5 * loss_5
+
+    gen_loss_GAN = tf.reduce_mean(-tf.log(dis_fake + EPS))  # 计算生成器损失中的GAN_loss部分
+    gen_loss_L1 = tf.reduce_mean(l1_loss(gen_picture, target_picture))  # 计算生成器损失中的L1_loss部分
+    gen_loss = gen_loss_GAN * args.lamda_gan_weight + gen_loss_L1 * args.lamda_l1_weight  # 计算生成器的loss
+
+    dis_loss = tf.reduce_mean(-(tf.log(dis_real + EPS) + tf.log(1 - dis_fake + EPS)))  # 计算判别器的loss
+
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True  # 设定显存不超量使用
+    sess = tf.Session(config=config)  # 新建会话层
+    init = tf.global_variables_initializer()  # 参数初始化器
+    sess.run(init)  # 初始化所有可训练参数
+
+    saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=3)  # 模型保存
+    checkpoint = tf.train.latest_checkpoint(args.snapshot_dir)  # 读取模型参数
+    saver.restore(sess, checkpoint)  # 导入模型参数
+
+    gen, predict, classification= sess.run([gen_picture, predict_op, classification], feed_dict={input_picture: picture})
+
+    write_image = get_gen_picture(picture[0], gen, args.image_size, args.image_size)  # 得到训练的可视化结果
+    sess.close()
+    return predict[0], write_image
+
 def eval():
     if not os.path.exists(eval_out_dir):  # 如果保存测试中可视化输出的文件夹不存在则创建
         os.makedirs(eval_out_dir)
 
-    picture, target, label, num_classes = test_TFEID()
+    picture, target, label, num_classes = test_jaffe()
 
     input_picture = tf.placeholder(tf.float32, shape=[None, args.image_size, args.image_size, 3],
                                    name='train_picture')  # 输入的训练图像
